@@ -1,3 +1,6 @@
+from langchain.prompts import PromptTemplate
+from langchain_openai import ChatOpenAI
+
 PROMPT_TEMPLATE = """
 CONTEXTO:
 {contexto}
@@ -25,5 +28,14 @@ PERGUNTA DO USUÁRIO:
 RESPONDA A "PERGUNTA DO USUÁRIO"
 """
 
-def search_prompt(question=None):
-    pass
+def search_prompt():
+    # retorna uma cadeia de busca usando o PROMPT_TEMPLATE e a questão do usuário conectando com o modelo de IA. 
+    # Utilizar o chat da Open API
+  
+    question_template = PromptTemplate(
+    input_variables=["contexto", "pergunta"],
+    template=PROMPT_TEMPLATE
+    )
+    model = ChatOpenAI(model="gpt-5-mini", temperature=0.5)
+
+    return question_template | model
