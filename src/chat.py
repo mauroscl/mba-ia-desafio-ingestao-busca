@@ -1,18 +1,16 @@
-import os
-from dotenv import load_dotenv
-
+from config import COMMON_REQUIRED_ENV, get_env, get_optional_env, validate_env
 from search import search_prompt
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 
-load_dotenv()
-
 def buscar_por_similaridade(pergunta):
     # implementar a função de busca por similaridade usando o PGVector e o modelo de embedding da OpenAI.
     # A função deve retornar o contexto mais relevante para a pergunta do usuário.
-    embeddings = OpenAIEmbeddings(model=os.getenv("OPENAI_MODEL","text-embedding-3-small"))
+    validate_env(COMMON_REQUIRED_ENV)
 
-    store= PGVector(embeddings=embeddings, collection_name=str(os.getenv("PG_VECTOR_COLLECTION_NAME")), connection=os.getenv("DATABASE_URL"), use_jsonb=True)
+    embeddings = OpenAIEmbeddings(model=get_optional_env("OPENAI_MODEL", "text-embedding-3-small"))
+
+    store= PGVector(embeddings=embeddings, collection_name=get_env("PG_VECTOR_COLLECTION_NAME"), connection=get_env("DATABASE_URL"), use_jsonb=True)
 
     results = store.similarity_search_with_score(pergunta, k=3)
 

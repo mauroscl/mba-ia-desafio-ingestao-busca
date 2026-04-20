@@ -1,12 +1,10 @@
 import os
-from dotenv import load_dotenv
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-
-load_dotenv()
+from config import INGEST_REQUIRED_ENV, get_env, get_optional_env, validate_env
 
 def mostrar_pdf(documents:list[Document]):
     for doc in documents:
@@ -14,12 +12,9 @@ def mostrar_pdf(documents:list[Document]):
             print(f"Metadata: {doc.metadata}")  # Print metadata
 
 def ingest_pdf():
-   
-    for k in ("OPENAI_API_KEY", "DATABASE_URL","PG_VECTOR_COLLECTION_NAME","PDF_PATH"):
-        if not os.getenv(k):
-            raise RuntimeError(f"Environment variable {k} is not set")
-    
-    PDF_PATH = str(os.getenv("PDF_PATH"))
+    validate_env(INGEST_REQUIRED_ENV)
+
+    PDF_PATH = get_env("PDF_PATH")
 
     if not os.path.isfile(PDF_PATH):
         print(f"File not found: {PDF_PATH}")
@@ -36,9 +31,9 @@ def ingest_pdf():
     
     mostrar_pdf(documents)
     
-    embeddings = OpenAIEmbeddings(model=os.getenv("OPENAI_MODEL","text-embedding-3-small"))
+    embeddings = OpenAIEmbeddings(model=get_optional_env("OPENAI_MODEL", "text-embedding-3-small"))
     
-    store= PGVector(embeddings=embeddings, collection_name=str(os.getenv("PG_VECTOR_COLLECTION_NAME")), connection=os.getenv("DATABASE_URL"), use_jsonb=True)
+    store= PGVector(embeddings=embeddings, collection_name=get_env("PG_VECTOR_COLLECTION_NAME"), connection=get_env("DATABASE_URL"), use_jsonb=True)
     
     print(f"Storing {len(documents)} documents in the vector store...")
     

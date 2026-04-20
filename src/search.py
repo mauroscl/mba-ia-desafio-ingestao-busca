@@ -1,5 +1,6 @@
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
+from config import OPENAI_REQUIRED_ENV, get_optional_env, validate_env
 
 PROMPT_TEMPLATE = """
 CONTEXTO:
@@ -29,13 +30,16 @@ RESPONDA A "PERGUNTA DO USUÁRIO"
 """
 
 def search_prompt():
-    # retorna uma cadeia de busca usando o PROMPT_TEMPLATE e a questão do usuário conectando com o modelo de IA. 
-    # Utilizar o chat da Open API
-  
-    question_template = PromptTemplate(
-    input_variables=["contexto", "pergunta"],
-    template=PROMPT_TEMPLATE
-    )
-    model = ChatOpenAI(model="gpt-5-mini", temperature=0.5)
+  # Retorna uma cadeia de busca usando o PROMPT_TEMPLATE e a questão do usuário.
+  validate_env(OPENAI_REQUIRED_ENV)
 
-    return question_template | model
+  question_template = PromptTemplate(
+    input_variables=["contexto", "pergunta"],
+    template=PROMPT_TEMPLATE,
+  )
+  model = ChatOpenAI(
+    model=get_optional_env("CHAT_MODEL", "gpt-5-mini"),
+    temperature=0.5,
+  )
+
+  return question_template | model
