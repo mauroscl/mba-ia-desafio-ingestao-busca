@@ -1,4 +1,5 @@
 import os
+import logging
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -30,3 +31,35 @@ def get_optional_env(name: str, default: str) -> str:
 def validate_env(required: tuple[str, ...]) -> None:
     for key in required:
         get_env(key)
+
+
+def setup_logging() -> None:
+    """Configura logging padrão para scripts CLI do projeto."""
+    root_logger = logging.getLogger()
+    if root_logger.handlers:
+        return
+
+    log_level_name = get_optional_env("LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    log_format = get_optional_env(
+        "LOG_FORMAT",
+        "%(asctime)s | %(levelname)s | %(name)s | %(message)s",
+    )
+
+    logging.basicConfig(level=log_level, format=log_format)
+
+    # Evita poluicao de logs com requisições HTTP de bibliotecas cliente.
+    noisy_loggers = ("httpx", "httpcore")
+    noisy_level_name = get_optional_env("LOG_HTTP_CLIENT_LEVEL", "WARNING").upper()
+    noisy_level = getattr(logging, noisy_level_name, logging.WARNING)
+    for logger_name in noisy_loggers:
+        logging.getLogger(logger_name).setLevel(noisy_level)
+
+
+def _is_truthy(value: str) -> bool:
+    return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+# Auto-bootstrap: ao importar config, logging já fica disponível para todo o projeto.
+if _is_truthy(get_optional_env("AUTO_SETUP_LOGGING", "true")):
+    setup_logging()
