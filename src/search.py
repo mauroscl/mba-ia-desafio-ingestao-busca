@@ -28,12 +28,12 @@ PERGUNTA DO USUÁRIO:
 RESPONDA A "PERGUNTA DO USUÁRIO"
 """
 
-def search_prompt():
+def search_prompt(temperature: float = 0.5):
   # Retorna uma cadeia de busca usando o PROMPT_TEMPLATE e a questão do usuário.
   question_template = PromptTemplate(
     input_variables=["contexto", "pergunta"],
     template=PROMPT_TEMPLATE,
   )
-  chat_model = create_chat_model(temperature=0.5)
+  chat_model = create_chat_model(temperature=temperature)
 
   return question_template | chat_model

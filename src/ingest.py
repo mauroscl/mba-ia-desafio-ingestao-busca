@@ -1,6 +1,7 @@
 import os
 import logging
 import re
+import argparse
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -9,6 +10,13 @@ from model_provider import create_embeddings
 from vector_store import create_pgvector_store
 
 logger = logging.getLogger(__name__)
+
+DEFAULT_CHUNK_SIZE = 1000
+DEFAULT_CHUNK_OVERLAP = 200
+
+
+class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
+    pass
 
 
 def normalizar_pdf_path(pdf_path: str) -> str:
@@ -29,7 +37,40 @@ def mostrar_pdf(documents:list[Document]):
             print(f"Content: {doc.page_content[:100]}...")  # Print the first 100 characters of content
             print(f"Metadata: {doc.metadata}")  # Print metadata
 
-def ingest_pdf():
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Ingestao de PDF para PGVector.",
+        formatter_class=HelpFormatter,
+        epilog=(
+            "Exemplo:\n"
+            "  python src/ingest.py --chunk-size 1200 --chunk-overlap 100"
+        ),
+    )
+    parser.add_argument(
+        "--chunk-size",
+        type=int,
+        default=DEFAULT_CHUNK_SIZE,
+        help="Tamanho do chunk usado na divisao do documento.",
+    )
+    parser.add_argument(
+        "--chunk-overlap",
+        type=int,
+        default=DEFAULT_CHUNK_OVERLAP,
+        help="Quantidade de sobreposicao entre chunks consecutivos.",
+    )
+
+    args = parser.parse_args()
+    if args.chunk_size <= 0:
+        parser.error("--chunk-size deve ser maior que 0.")
+    if args.chunk_overlap < 0:
+        parser.error("--chunk-overlap deve ser maior ou igual a 0.")
+    if args.chunk_overlap >= args.chunk_size:
+        parser.error("--chunk-overlap deve ser menor que --chunk-size.")
+
+    return args
+
+
+def ingest_pdf(chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP):
     validate_env(INGEST_REQUIRED_ENV)
 
     PDF_PATH = normalizar_pdf_path(get_env("PDF_PATH"))
@@ -40,8 +81,8 @@ def ingest_pdf():
 
     loader = PyPDFLoader(PDF_PATH)
     documents = loader.load()
-    logger.info("chunk_size: 1000, chunk_overlap: 200")
-    splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    logger.info("chunk_size: %d, chunk_overlap: %d", chunk_size, chunk_overlap)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     chunks = splitter.split_documents(documents)
 
     documents = [Document(page_content=chunk.page_content, 
@@ -72,6 +113,7 @@ def ingest_pdf():
 
 
 if __name__ == "__main__":
-    ingest_pdf()
+    cli_args = parse_args()
+    ingest_pdf(chunk_size=cli_args.chunk_size, chunk_overlap=cli_args.chunk_overlap)
 
 
