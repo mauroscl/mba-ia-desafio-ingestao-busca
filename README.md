@@ -104,8 +104,8 @@ Se quiser seguir exatamente o enunciado, ajuste esses valores no seu .env.
 
 Implementada em src/model_provider.py:
 
-- Se OPENAI_API_KEY existir, usa OpenAI.
-- Senao, se GOOGLE_API_KEY existir, usa Google.
+- Se OPENAI_API_KEY existir, usa configurações da OpenAI para o model e para embeddings.
+- Senao, se GOOGLE_API_KEY existir, usa configurações do Google para o model e para embeddings.
 - Se nenhuma chave existir, a execucao falha.
 
 ## Ordem de execucao
@@ -140,29 +140,32 @@ Script: src/ingest.py
 python src/ingest.py
 ```
 
+### Informando arquivo por parametro (recomendado)
+
+```bash
+python src/ingest.py --pdf-path ./document.pdf
+```
+
+Quando `--pdf-path` e informado, ele tem prioridade sobre `PDF_PATH` do `.env`.
+Sem o parametro, o script continua usando `PDF_PATH` para manter compatibilidade.
+O parâmetro pdf-path permite que se adicione de maneira fácil mais de uma arquivo sem precisar alterar variável de ambiente indicando PDF_PATH
+
 ### Parametros opcionais
 
+- --pdf-path (default: None)
 - --chunk-size (default: 1000)
-- --chunk-overlap (default: 200)
+- --chunk-overlap (default: 150)
 
 Exemplo:
 
 ```bash
-python src/ingest.py --chunk-size 1200 --chunk-overlap 100
+python src/ingest.py --pdf-path ./document.pdf --chunk-size 1200 --chunk-overlap 100
 ```
 
 ### Ajuda
 
 ```bash
 python src/ingest.py --help
-```
-
-### Observacao sobre o desafio
-
-No enunciado, o overlap solicitado e 150. Para aderencia estrita ao desafio, rode:
-
-```bash
-python src/ingest.py --chunk-size 1000 --chunk-overlap 150
 ```
 
 ## Chat CLI
@@ -235,7 +238,7 @@ Acoes sugeridas:
 
 O projeto ja reduz logs de httpx/httpcore para WARNING em src/config.py.
 
-## Comandos uteis
+## Comandos uteis (aplicação)
 
 ```bash
 # Subir banco
@@ -251,11 +254,25 @@ python src/chat.py --temperature 0.4 --k 10
 python src/ingest.py --help
 python src/chat.py --help
 ```
+## Comandos uteis (banco de dados)
 
-## Entregavel
+```sql
+--Listar coleções
+SELECT *
+FROM langchain_pg_collection;
+```
 
-Repositorio publico com:
+```sql
+--Listar embeddings e metadados
+SELECT cmetadata
+FROM langchain_pg_embedding
+WHERE collection_id = 'a62b02a9-32af-482c-a402-4b13939d777a'; --substituir pelo id correto
+```
 
-- codigo fonte completo
-- README com instrucoes claras de execucao
-- estrutura proposta no desafio
+```sql
+--Limpar uma collection. O DELETE é CASCADE e vai excluir também os registros de langchain_pg_embedding relacionados
+DELETE 
+FROM langchain_pg_collection
+WHERE collection_id = 'a62b02a9-32af-482c-a402-4b13939d777a'; --substituir pelo id correto
+```
+

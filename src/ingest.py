@@ -2,22 +2,24 @@ import os
 import logging
 import re
 import argparse
+from datetime import datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from config import INGEST_REQUIRED_ENV, get_env, validate_env
+from config import COMMON_REQUIRED_ENV, get_env, validate_env
 from model_provider import create_embeddings
 from vector_store import create_pgvector_store
 
 logger = logging.getLogger(__name__)
 
 DEFAULT_CHUNK_SIZE = 1000
-DEFAULT_CHUNK_OVERLAP = 200
+DEFAULT_CHUNK_OVERLAP = 150
 
 
 class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter, argparse.RawDescriptionHelpFormatter):
     pass
-
 
 def normalizar_pdf_path(pdf_path: str) -> str:
     if os.path.isfile(pdf_path):
@@ -47,6 +49,12 @@ def parse_args() -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--pdf-path",
+        type=str,
+        default=None,
+        help="Caminho do PDF para ingestao. Se informado, tem prioridade sobre PDF_PATH do ambiente.",
+    )
+    parser.add_argument(
         "--chunk-size",
         type=int,
         default=DEFAULT_CHUNK_SIZE,
@@ -70,50 +78,70 @@ def parse_args() -> argparse.Namespace:
     return args
 
 
-def ingest_pdf(chunk_size: int = DEFAULT_CHUNK_SIZE, chunk_overlap: int = DEFAULT_CHUNK_OVERLAP):
-    validate_env(INGEST_REQUIRED_ENV)
+def ingest_pdf(
+    chunk_size: int = DEFAULT_CHUNK_SIZE,
+    chunk_overlap: int = DEFAULT_CHUNK_OVERLAP,
+    pdf_path: str | None = None,
+):
+    validate_env(COMMON_REQUIRED_ENV)
 
-    PDF_PATH = normalizar_pdf_path(get_env("PDF_PATH"))
+    pdf_path_from_input = pdf_path or get_env("PDF_PATH")
+    normalized_pdf_path = normalizar_pdf_path(pdf_path_from_input)
 
-    if not os.path.isfile(PDF_PATH):
-        logger.error("File not found: %s", PDF_PATH)
+    if not os.path.isfile(normalized_pdf_path):
+        logger.error("File not found: %s", normalized_pdf_path)
         return
 
-    loader = PyPDFLoader(PDF_PATH)
+    loader = PyPDFLoader(normalized_pdf_path)
     documents = loader.load()
     logger.info("chunk_size: %d, chunk_overlap: %d", chunk_size, chunk_overlap)
     splitter = RecursiveCharacterTextSplitter(chunk_size=chunk_size, chunk_overlap=chunk_overlap)
     chunks = splitter.split_documents(documents)
 
-    documents = [Document(page_content=chunk.page_content, 
-                          metadata={k: v for k, v in chunk.metadata.items() if v not in ("", None)}) 
-                 for chunk in chunks]
-    
-    if os.getenv("INGEST_SHOW_PDF", "").lower() in ("1", "true", "yes", "on"):
-        mostrar_pdf(documents)
+    ingestion_timestamp = datetime.now(timezone.utc).isoformat()
+    source_file = str(Path(normalized_pdf_path).resolve())
+    source_filename = Path(normalized_pdf_path).name
+
+    documents = []
+    for chunk_index, chunk in enumerate(chunks):
+        sanitized_metadata = {
+            k: v for k, v in chunk.metadata.items() if v not in ("", None)
+        } | {
+            "source_file": source_file,
+            "source_filename": source_filename,
+            "chunk_index": chunk_index,
+            "ingestion_timestamp": ingestion_timestamp,
+        }
+        documents.append(Document(page_content=chunk.page_content, metadata=sanitized_metadata))
 
     if not documents:
         logger.warning("No chunks generated from PDF. Nothing to ingest.")
         return
 
+    if os.getenv("INGEST_SHOW_PDF", "").lower() in ("1", "true", "yes", "on"):
+        mostrar_pdf(documents)
+
     embeddings = create_embeddings()
-    
+
     collection_name = get_env("PG_VECTOR_COLLECTION_NAME")
 
     logger.info("Embedding model: %s", embeddings.model)
     logger.info("Target collection: %s", collection_name)
-    
+
     store = create_pgvector_store(embeddings=embeddings)
-    
+
     logger.info("Storing %d documents in the vector store...", len(documents))
-    
-    # prefixa o nome da collection para não ocorrer colisão de ids entre diferentes coleções
-    ids = [f"{collection_name}_doc_{i}" for i in range(len(documents))]
+
+    ids = [str(uuid4()) for _ in range(len(documents))]
     store.add_documents(documents, ids=ids)
 
 
 if __name__ == "__main__":
     cli_args = parse_args()
-    ingest_pdf(chunk_size=cli_args.chunk_size, chunk_overlap=cli_args.chunk_overlap)
+    ingest_pdf(
+        chunk_size=cli_args.chunk_size,
+        chunk_overlap=cli_args.chunk_overlap,
+        pdf_path=cli_args.pdf_path,
+    )
 
 
