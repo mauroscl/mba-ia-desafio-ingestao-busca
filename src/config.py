@@ -4,14 +4,11 @@ from dotenv import load_dotenv
 load_dotenv()
 
 COMMON_REQUIRED_ENV = (
-    "OPENAI_API_KEY",
     "DATABASE_URL",
     "PG_VECTOR_COLLECTION_NAME",
 )
 
-OPENAI_REQUIRED_ENV = (
-    "OPENAI_API_KEY",
-)
+CHAT_REQUIRED_ENV = ()
 
 INGEST_REQUIRED_ENV = COMMON_REQUIRED_ENV + (
     "PDF_PATH",
@@ -19,15 +16,15 @@ INGEST_REQUIRED_ENV = COMMON_REQUIRED_ENV + (
 
 
 def get_env(name: str) -> str:
-    value = os.getenv(name)
-    if not value:
+    if value := os.getenv(name):
+        return value
+    else:
         raise RuntimeError(f"Environment variable {name} is not set")
-    return value
 
 
 def get_optional_env(name: str, default: str) -> str:
     value = os.getenv(name)
-    return value if value else default
+    return default if value is None else value
 
 
 def validate_env(required: tuple[str, ...]) -> None:

@@ -1,10 +1,13 @@
 import os
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
-from langchain_openai import OpenAIEmbeddings
 from langchain_postgres import PGVector
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from config import INGEST_REQUIRED_ENV, get_env, get_optional_env, validate_env
+from config import INGEST_REQUIRED_ENV, get_env, validate_env
+from model_provider import create_embeddings
+import logging
+
+logger = logging.getLogger(__name__)
 
 def mostrar_pdf(documents:list[Document]):
     for doc in documents:
@@ -17,11 +20,12 @@ def ingest_pdf():
     PDF_PATH = get_env("PDF_PATH")
 
     if not os.path.isfile(PDF_PATH):
-        print(f"File not found: {PDF_PATH}")
+        logger.error("File not found: %s", PDF_PATH)
         return
 
     loader = PyPDFLoader(PDF_PATH)
     documents = loader.load()
+    logger.info("chunk_size: 1000, chunk_overlap: 200")
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
     chunks = splitter.split_documents(documents)
 
@@ -29,15 +33,26 @@ def ingest_pdf():
                           metadata={k: v for k, v in chunk.metadata.items() if v not in ("", None)}) 
                  for chunk in chunks]
     
-    mostrar_pdf(documents)
+    if os.getenv("INGEST_SHOW_PDF", "").lower() in ("1", "true", "yes", "on"):
+        mostrar_pdf(documents)
+
+    if not documents:
+        logger.warning("No chunks generated from PDF. Nothing to ingest.")
+        return
+
+    embeddings = create_embeddings()
     
-    embeddings = OpenAIEmbeddings(model=get_optional_env("OPENAI_MODEL", "text-embedding-3-small"))
+    collection_name = get_env("PG_VECTOR_COLLECTION_NAME")
+
+    logger.info("Embedding model: %s", embeddings.model)
+    logger.info("Target collection: %s", collection_name)
     
-    store= PGVector(embeddings=embeddings, collection_name=get_env("PG_VECTOR_COLLECTION_NAME"), connection=get_env("DATABASE_URL"), use_jsonb=True)
+    store= PGVector(embeddings=embeddings, collection_name=collection_name, connection=get_env("DATABASE_URL"), use_jsonb=True)
     
-    print(f"Storing {len(documents)} documents in the vector store...")
+    logger.info("Storing %d documents in the vector store...", len(documents))
     
-    ids = [f"doc_{i}" for i in range(len(documents))]
+    # IDs in langchain_pg_embedding are globally unique, not per collection.
+    ids = [f"{collection_name}_doc_{i}" for i in range(len(documents))]
     store.add_documents(documents, ids=ids)
 
 
