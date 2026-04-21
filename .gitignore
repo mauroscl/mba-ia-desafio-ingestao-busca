@@ -3,7 +3,8 @@ __pycache__
 .vscode
 .github
 .idea
-
+.agents
+skills-lock.json
 # Environment files (keep templates tracked)
 .env
 .env.*

@@ -1,11 +1,5 @@
 # MBA em Engenharia de Software com IA | Desafios Técnicos
 
-**URL:** https://plataforma.fullcycle.com.br/courses/a091b0fe-a5c6-4287-a3d3-1ec61defcfd3/408/224/266/conteudos?projeto=70&fase=293
-
-**Saved:** 2026-04-20
-
----
-
 ## Ingestão e Busca Semântica com LangChain e Postgres
 
 ## Objetivo
